@@ -1,9 +1,34 @@
 
 from torch.autograd import Variable
 import random
-import numpy as np, torch
+import numpy as np, torch, os
 
+class Tracker(): #Tracker
+    def __init__(self, parameters, vars_string, project_string):
+        self.vars_string = vars_string; self.project_string = project_string
+        self.foldername = parameters.save_foldername
+        self.all_tracker = [[[],0.0,[]] for _ in vars_string] #[Id of var tracked][fitnesses, avg_fitness, csv_fitnesses]
+        if not os.path.exists(self.foldername):
+            os.makedirs(self.foldername)
 
+    def update(self, updates, generation):
+        for update, var in zip(updates, self.all_tracker):
+            var[0].append(update)
+
+        #Constrain size of convolution
+        if len(self.all_tracker[0][0]) > 100: #Assume all variable are updated uniformly
+            for var in self.all_tracker:
+                var[0].pop(0)
+
+        #Update new average
+        for var in self.all_tracker:
+            var[1] = sum(var[0])/float(len(var[0]))
+
+        if generation % 10 == 0:  # Save to csv file
+            for i, var in enumerate(self.all_tracker):
+                var[2].append(np.array([generation, var[1]]))
+                filename = self.foldername + self.vars_string[i] + self.project_string
+                np.savetxt(filename, np.array(var[2]), fmt='%.3f', delimiter=',')
 
 class Memory:   # stored as ( s, a, r, s_ ) in SumTree
     e = 0.01

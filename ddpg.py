@@ -135,7 +135,6 @@ class DDPG(object):
         next_action_batch = self.actor_target(next_state_batch)
         next_state_action_values = self.critic_target(next_state_batch, next_action_batch)
 
-        #reward_batch = torch.unsqueeze(reward_batch, 1)
         expected_state_action_batch = reward_batch + (self.gamma * next_state_action_values)
 
         self.critic_optim.zero_grad()
@@ -156,3 +155,51 @@ class DDPG(object):
 
         soft_update(self.actor_target, self.actor, self.tau)
         soft_update(self.critic_target, self.critic, self.tau)
+
+
+    def update_parameters_dpp(self, batch):
+        state_batch = torch.cat(batch.state)
+        next_state_batch = torch.cat(batch.next_state)
+        action_batch = torch.cat(batch.action)
+        reward_batch = torch.cat(batch.reward)
+
+        next_action_batch = self.actor_target(next_state_batch)
+        next_state_action_values = self.critic_target(next_state_batch, next_action_batch)
+
+        expected_state_action_batch = reward_batch + (self.gamma * next_state_action_values)
+
+        self.critic_optim.zero_grad()
+
+        state_action_batch = self.critic((state_batch), (action_batch))
+
+        value_loss = MSELoss(state_action_batch, expected_state_action_batch)
+        value_loss.backward()
+        self.critic_optim.step()
+
+        #Actor
+        self.actor_optim.zero_grad()
+
+        policy_loss = -self.critic((state_batch),self.actor((state_batch)))
+
+        policy_loss = policy_loss.mean()
+        policy_loss.backward()
+        self.actor_optim.step()
+
+        soft_update(self.actor_target, self.actor, self.tau)
+        soft_update(self.critic_target, self.critic, self.tau)
+
+    def dpp(self, critic, actor, state, action):
+        all_q = [critic((state),actor((state)))]
+
+        state = to_numpy(state)
+        mid_index = 180 / self.args.angle_res
+        coupling = self.args.coupling
+        # dpp_sweep = [mid_index + i for i in range(int(-coupling/2), int(-coupling/2) + coupling, 1)]
+
+        dpp_sweep = random.sample(range(360 / self.args.angle_res), coupling + 1)
+
+        for i in dpp_sweep:
+            states[i, :] += 2.0
+            vals = torch.cat((vals, net.critic_forward(to_tensor(states))), 0)
+
+        return torch.max(vals, 0)[0].unsqueeze(0)

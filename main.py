@@ -49,11 +49,12 @@ class Parameters:
         #Dependents
         self.state_dim = 2*360 / self.angle_res + 5
         self.action_dim = 2
+        self.test_frequency = 10
 
         #Replay Buffer
         self.buffer_size = 1000000
 
-        self.save_foldername = 'R_Block/'
+        self.save_foldername = 'R_D++/'
         if not os.path.exists(self.save_foldername): os.makedirs(self.save_foldername)
 
         #Unit tests (Simply changes the rover/poi init locations)
@@ -61,17 +62,14 @@ class Parameters:
                            #1: Single Agent
                            #2: Multiagent 2-coupled
 
-
         self.num_episodes = 100000
         self.updates_per_step = 1
         self.replay_size = 1000000
         self.render = 'False'
 
 
-
-
 args = Parameters()
-
+tracker = Tracker(args, ['rewards'], '')
 env = Task_Rovers(args)
 
 torch.manual_seed(args.seed)
@@ -84,60 +82,43 @@ else:
 memory = ReplayMemory(args.replay_size)
 ounoise = OUNoise(env.action_space.shape[0])
 
-rewards = []
 for i_episode in range(args.num_episodes):
-    if i_episode < args.num_episodes // 2:
-        joint_state = to_tensor(np.array(env.reset()))
+    joint_state = to_tensor(np.array(env.reset()))
+
+    if i_episode % args.test_frequency != 0:
         ounoise.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end - i_episode) / args.exploration_end + args.final_noise_scale
         ounoise.reset()
-        episode_reward = 0
-        for t in range(args.num_timestep):
+    episode_reward = 0
+    for t in range(args.num_timestep):
+        if i_episode % args.test_frequency != 0:
+            joint_action = agent.select_action(joint_state)
+        else:
             joint_action = agent.select_action(joint_state, ounoise)
-            joint_next_state, joint_reward = env.step(joint_action.numpy())
-            joint_next_state = to_tensor(np.array(joint_next_state), volatile=True)
-            done = t == args.num_timestep - 1
-            episode_reward += np.sum(joint_reward)
+        joint_next_state, joint_reward = env.step(joint_action.numpy())
+        joint_next_state = to_tensor(np.array(joint_next_state), volatile=True)
+        done = t == args.num_timestep - 1
+        episode_reward += np.sum(joint_reward)
 
-            #Add to memory
-            for i in range(args.num_rover):
-                action = Variable(joint_action[i].unsqueeze(0))
-                state = joint_state[i,:].unsqueeze(0)
-                next_state = joint_next_state[i, :].unsqueeze(0)
-                reward = to_tensor(np.array([joint_reward[i]])).unsqueeze(0)
-                memory.push(state, action, next_state, reward)
+        #Add to memory
+        for i in range(args.num_rover):
+            action = Variable(joint_action[i].unsqueeze(0))
+            state = joint_state[i,:].unsqueeze(0)
+            next_state = joint_next_state[i, :].unsqueeze(0)
+            reward = to_tensor(np.array([joint_reward[i]])).unsqueeze(0)
+            memory.push(state, action, next_state, reward)
 
-            state = next_state
+        state = next_state
 
-            if len(memory) > args.batch_size * 5:
-                for _ in range(args.updates_per_step):
-                    transitions = memory.sample(args.batch_size)
-                    batch = Transition(*zip(*transitions))
-                    agent.update_parameters(batch)
+        if len(memory) > args.batch_size * 5:
+            for _ in range(args.updates_per_step):
+                transitions = memory.sample(args.batch_size)
+                batch = Transition(*zip(*transitions))
+                agent.update_parameters(batch)
 
-            if done:
-
-                break
-        rewards.append(episode_reward)
-    # else:
-    #     state = torch.Tensor([env.reset()])
-    #     episode_reward = 0
-    #     for t in range(args.num_timestep):
-    #         action = agent.select_action(state)
-    #
-    #         next_state, reward, done, _ = env.step(action.numpy()[0])
-    #         episode_reward += reward
-    #
-    #         next_state = torch.Tensor([next_state])
-    #
-    #         if i_episode % 10 == 0:
-    #             env.render()
-    #
-    #         state = next_state
-    #         if done:
-    #             break
-    #
-    #     rewards.append(episode_reward)
-    print("Episode: {}, noise: {}, reward: {}, average reward: {}".format(i_episode, ounoise.scale,
-                                                                          rewards[-1], np.mean(rewards[-100:])))
+    if i_episode % args.test_frequency != 0:
+        env.render()
+        tracker.update([episode_reward], i_episode)
+        print("Episode: {}, noise: {}, reward: {}, average reward: {}".format(i_episode, ounoise.scale,
+                                                                          episode_reward, tracker.all_tracker[0][1]))
     
 

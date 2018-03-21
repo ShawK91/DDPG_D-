@@ -249,7 +249,7 @@ class Task_Rovers:
             print row
         print
 
-    def trace_viz(self):
+    def render(self):
         # Visualize
         grid = [['-' for _ in range(self.dim_x)] for _ in range(self.dim_y)]
 
