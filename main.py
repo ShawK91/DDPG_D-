@@ -90,7 +90,7 @@ for i_episode in range(args.num_episodes):
         ounoise.reset()
     episode_reward = 0
     for t in range(args.num_timestep):
-        if i_episode % args.test_frequency != 0:
+        if i_episode % args.test_frequency == 0:
             joint_action = agent.select_action(joint_state)
         else:
             joint_action = agent.select_action(joint_state, ounoise)
@@ -115,7 +115,7 @@ for i_episode in range(args.num_episodes):
                 batch = Transition(*zip(*transitions))
                 agent.update_parameters(batch)
 
-    if i_episode % args.test_frequency != 0:
+    if i_episode % args.test_frequency == 0:
         env.render()
         tracker.update([episode_reward], i_episode)
         print("Episode: {}, noise: {}, reward: {}, average reward: {}".format(i_episode, ounoise.scale,

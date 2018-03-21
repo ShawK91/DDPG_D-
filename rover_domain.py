@@ -1,9 +1,7 @@
 import random
 from random import randint
 import numpy as np
-import math
-
-
+import math, cPickle
 
 class Task_Rovers:
 
@@ -273,9 +271,6 @@ class Task_Rovers:
             print row
         print
 
-        print 'Action Diversity', self.action_seq
-
-        # print agent.ledger.ledger
         print '------------------------------------------------------------------------'
 
 

@@ -5,6 +5,7 @@ import torch.nn as nn
 from torch.optim import Adam
 from torch.autograd import Variable
 import torch.nn.functional as F
+import utils as utils
 
 MSELoss = nn.MSELoss()
 
@@ -179,7 +180,8 @@ class DDPG(object):
         #Actor
         self.actor_optim.zero_grad()
 
-        policy_loss = -self.critic((state_batch),self.actor((state_batch)))
+        policy_loss = -self.dpp(self.critic, self.actor, state_batch)
+
 
         policy_loss = policy_loss.mean()
         policy_loss.backward()
@@ -188,10 +190,10 @@ class DDPG(object):
         soft_update(self.actor_target, self.actor, self.tau)
         soft_update(self.critic_target, self.critic, self.tau)
 
-    def dpp(self, critic, actor, state, action):
+    def dpp(self, critic, actor, state):
         all_q = [critic((state),actor((state)))]
 
-        state = to_numpy(state)
+        state = utils.to_numpy(state)
         mid_index = 180 / self.args.angle_res
         coupling = self.args.coupling
         # dpp_sweep = [mid_index + i for i in range(int(-coupling/2), int(-coupling/2) + coupling, 1)]
