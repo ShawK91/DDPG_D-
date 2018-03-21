@@ -14,7 +14,8 @@ from normalized_actions import NormalizedActions
 from ounoise import OUNoise
 from replay_memory import ReplayMemory, Transition
 from rover_domain import Task_Rovers
-from utils import *
+import utils as utils
+from torch.autograd import Variable
 
 
 class Parameters:
@@ -69,7 +70,7 @@ class Parameters:
 
 
 args = Parameters()
-tracker = Tracker(args, ['rewards'], '')
+tracker = utils.Tracker(args, ['rewards'], '')
 env = Task_Rovers(args)
 
 torch.manual_seed(args.seed)
@@ -83,7 +84,7 @@ memory = ReplayMemory(args.replay_size)
 ounoise = OUNoise(env.action_space.shape[0])
 
 for i_episode in range(args.num_episodes):
-    joint_state = to_tensor(np.array(env.reset()))
+    joint_state = utils.to_tensor(np.array(env.reset()))
 
     if i_episode % args.test_frequency != 0:
         ounoise.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end - i_episode) / args.exploration_end + args.final_noise_scale
@@ -94,8 +95,8 @@ for i_episode in range(args.num_episodes):
             joint_action = agent.select_action(joint_state)
         else:
             joint_action = agent.select_action(joint_state, ounoise)
-        joint_next_state, joint_reward = env.step(joint_action.numpy())
-        joint_next_state = to_tensor(np.array(joint_next_state), volatile=True)
+        joint_next_state, joint_reward = env.step(joint_action.cpu().numpy())
+        joint_next_state = utils.to_tensor(np.array(joint_next_state), volatile=True)
         done = t == args.num_timestep - 1
         episode_reward += np.sum(joint_reward)
 
@@ -104,7 +105,7 @@ for i_episode in range(args.num_episodes):
             action = Variable(joint_action[i].unsqueeze(0))
             state = joint_state[i,:].unsqueeze(0)
             next_state = joint_next_state[i, :].unsqueeze(0)
-            reward = to_tensor(np.array([joint_reward[i]])).unsqueeze(0)
+            reward = utils.to_tensor(np.array([joint_reward[i]])).unsqueeze(0)
             memory.push(state, action, next_state, reward)
 
         state = next_state

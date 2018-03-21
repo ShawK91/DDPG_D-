@@ -42,6 +42,7 @@ class Actor(nn.Module):
         self.mu = nn.Linear(hidden_size, num_outputs)
         self.mu.weight.data.mul_(0.1)
         self.mu.bias.data.mul_(0.1)
+        self.cuda()
 
 
     def forward(self, inputs):
@@ -83,6 +84,8 @@ class Critic(nn.Module):
         self.V.weight.data.mul_(0.1)
         self.V.bias.data.mul_(0.1)
 
+        self.cuda()
+
     def forward(self, inputs, actions):
         x = inputs
         #x = self.bn0(x)
@@ -122,7 +125,7 @@ class DDPG(object):
         self.actor.train()
         mu = mu.data
         if exploration is not None:
-            mu += torch.Tensor(exploration.noise())
+            mu += torch.Tensor(exploration.noise()).cuda()
 
         return mu.clamp(-1, 1)
 
